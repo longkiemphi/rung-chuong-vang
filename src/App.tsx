@@ -210,7 +210,7 @@ function GameScreen({
               <div className="w-full text-center space-y-12">
                 <div className="space-y-4">
                   <span className="bg-yellow-400 text-blue-900 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-wider">
-                    {currentQuestion.subject}
+                    {currentQuestion.topic || currentQuestion.subject}
                   </span>
                   <h2 className="text-4xl font-bold leading-tight">{currentQuestion.question}</h2>
                 </div>
@@ -552,6 +552,35 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const exportData = () => {
+    if (questions.length === 0) {
+      alert("Không có câu hỏi nào để xuất!");
+      return;
+    }
+    const header = 'Môn học,Chủ đề,Câu hỏi,Đáp án A,Đáp án B,Đáp án C,Đáp án D,Đáp án đúng,Độ khó';
+    const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
+    const rows = questions.map(q => [
+      escapeCSV(q.subject),
+      escapeCSV(q.topic || ''),
+      escapeCSV(q.question),
+      escapeCSV(q.options.A),
+      escapeCSV(q.options.B),
+      escapeCSV(q.options.C),
+      escapeCSV(q.options.D),
+      escapeCSV(q.correctAnswer),
+      q.difficulty.toString()
+    ].join(','));
+    
+    const csvContent = '\uFEFF' + header + '\n' + rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Danh_sach_cau_hoi_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -735,6 +764,12 @@ export default function App() {
           </div>
           
           <div className="flex gap-4">
+            <button 
+              onClick={exportData}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-5 py-3 rounded-xl font-medium transition-all"
+            >
+              <Save size={18} /> Xuất CSV
+            </button>
             <button 
               onClick={downloadTemplate}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-medium transition-all"
