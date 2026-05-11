@@ -460,6 +460,11 @@ export default function App() {
       } catch (_) {}
       setScreen(Screen.VICTORY);
     } else {
+      try {
+        const gameOverAudio = new Audio('/match_win.ogg');
+        gameOverAudio.volume = 0.7;
+        gameOverAudio.play();
+      } catch (_) {}
       setScreen(Screen.GAME_OVER);
     }
   };
@@ -1073,7 +1078,7 @@ export default function App() {
     const steps = [
       {
         title: "Bắt đầu cuộc thi",
-        content: "Hệ thống sẽ hiển thị các câu hỏi theo độ khó tăng dần. Mỗi câu hỏi có 10 giây để trả lời. Người dẫn chương trình điều khiển bộ đếm ngược bằng nút 'Rotate'."
+        content: "Hệ thống hiển thị các câu hỏi theo độ khó tăng dần. Thời gian đếm ngược có thể tuỳ chỉnh ở màn hình Quản trị. Quản trị viên nhấn nút 'Play' (màu xanh) để bắt đầu tính giờ."
       },
       {
         title: "Loại thí sinh",
@@ -1085,11 +1090,11 @@ export default function App() {
       },
       {
         title: "Cứu trợ & Quản trị",
-        content: "Người quản trị có thể chủ động đưa thí sinh quay lại sàn đấu bằng cách click vào ô đã bị loại. Bạn cũng có thể quản lý, import/export câu hỏi từ Excel."
+        content: "Bạn có thể đưa thí sinh quay lại sàn đấu (cứu trợ) bằng cách click vào ô đã bị loại. Ngoài ra, bạn có thể quản lý, import hoặc xuất (export) danh sách câu hỏi bằng file CSV."
       },
       {
-        title: "Chiến thắng",
-        content: "Người cuối cùng còn trụ lại sau câu hỏi cuối cùng sẽ được vinh danh Rung Chuông Vàng. Hiệu ứng pháo giấy và chuông vàng sẽ xuất hiện."
+        title: "Tổng kết kết quả",
+        content: "Khi số lượng thí sinh trên sàn chỉ còn 1 người (hoặc không còn ai), nút 'Tổng kết kết quả' sẽ xuất hiện. Hãy nhấn để vinh danh người chiến thắng hoặc khép lại chương trình."
       }
     ];
 
