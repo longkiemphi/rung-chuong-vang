@@ -34,6 +34,7 @@ enum Screen {
   GAME,
   ADMIN,
   VICTORY,
+  GAME_OVER,
   TUTORIAL
 }
 
@@ -112,6 +113,7 @@ interface GameScreenProps {
   onShowAnswer: () => void;
   onSetTimer: (seconds: number) => void;
   onNextQuestion: () => void;
+  onEndGame: (type: 'victory' | 'game_over') => void;
 }
 
 function GameScreen({
@@ -128,7 +130,8 @@ function GameScreen({
   onToggleParticipant,
   onShowAnswer,
   onSetTimer,
-  onNextQuestion
+  onNextQuestion,
+  onEndGame
 }: GameScreenProps) {
   const aliveCount = participants.filter(p => p.status === 'alive').length;
 
@@ -137,7 +140,7 @@ function GameScreen({
                    totalParticipantsCount <= 50 ? 'grid-cols-7' : 'grid-cols-10';
 
   return (
-    <div className="flex flex-col w-full h-full p-6 text-white overflow-hidden">
+    <div className="flex flex-col w-full h-full px-6 pb-6 pt-24 text-white overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button
@@ -262,16 +265,25 @@ function GameScreen({
             >
               <Play className="fill-white" />
             </button>
-            <button
-              onClick={onNextQuestion}
-              disabled={currentQuestionIdx === sortedQuestions.length - 1}
-              className={`
-                flex-1 py-5 rounded-2xl font-bold text-xl shadow-lg transition-all flex items-center justify-center gap-2
-                ${currentQuestionIdx === sortedQuestions.length - 1 ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-yellow-400 text-blue-900 hover:bg-yellow-500'}
-              `}
-            >
-              Câu tiếp theo <ChevronLeft className="rotate-180" />
-            </button>
+            {aliveCount <= 1 ? (
+              <button
+                onClick={() => onEndGame(aliveCount === 1 ? 'victory' : 'game_over')}
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-5 rounded-2xl font-bold text-xl shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <Trophy /> Tổng kết kết quả
+              </button>
+            ) : (
+              <button
+                onClick={onNextQuestion}
+                disabled={currentQuestionIdx === sortedQuestions.length - 1}
+                className={`
+                  flex-1 py-5 rounded-2xl font-bold text-xl shadow-lg transition-all flex items-center justify-center gap-2
+                  ${currentQuestionIdx === sortedQuestions.length - 1 ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-yellow-400 text-blue-900 hover:bg-yellow-500'}
+                `}
+              >
+                Câu tiếp theo <ChevronLeft className="rotate-180" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -293,6 +305,7 @@ export default function App() {
   const [totalParticipantsCount, setTotalParticipantsCount] = useState(50);
   const [timerDuration, setTimerDuration] = useState(10);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
   // Loading Simulation
   useEffect(() => {
@@ -354,6 +367,25 @@ export default function App() {
     } catch (_) { /* audio not supported */ }
   };
 
+  // Background Music Logic
+  useEffect(() => {
+    bgMusicRef.current = new Audio('/sonican-news-music-information-epic-30-seconds-471012.mp3');
+    bgMusicRef.current.volume = 0.5;
+  }, []);
+
+  useEffect(() => {
+    if (isTimerRunning) {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.currentTime = 0;
+        bgMusicRef.current.play().catch(() => {});
+      }
+    } else {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+      }
+    }
+  }, [isTimerRunning]);
+
   // Timer Logic
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -367,32 +399,70 @@ export default function App() {
       }, 1000);
     } else if (timer === 0) {
       setIsTimerRunning(false);
-      // Play a longer final beep
+      // Play dramatic "time's up" buzzer
       try {
         if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
         const ctx = audioCtxRef.current;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.value = 1200;
-        gain.gain.value = 0.4;
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.8);
+        const now = ctx.currentTime;
+
+        // Layer 1: Rising sweep
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(400, now);
+        osc1.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+        gain1.gain.setValueAtTime(0.25, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        osc1.start(now);
+        osc1.stop(now + 0.5);
+
+        // Layer 2: Two short staccato hits
+        [0, 0.15].forEach(offset => {
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.connect(g);
+          g.connect(ctx.destination);
+          osc.type = 'square';
+          osc.frequency.value = 800;
+          g.gain.setValueAtTime(0.2, now + offset);
+          g.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.1);
+          osc.start(now + offset);
+          osc.stop(now + offset + 0.12);
+        });
+
+        // Layer 3: Final long tone (chord)
+        [523, 659, 784].forEach(freq => {
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.connect(g);
+          g.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          g.gain.setValueAtTime(0.15, now + 0.35);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+          osc.start(now + 0.35);
+          osc.stop(now + 1.5);
+        });
       } catch (_) {}
     }
     return () => clearInterval(interval);
   }, [isTimerRunning, timer]);
 
-  // Win condition check
-  useEffect(() => {
-    const aliveCount = participants.filter(p => p.status === 'alive').length;
-    if (screen === Screen.GAME && aliveCount === 1 && participants.length > 1) {
+  // Handle manual transition to Victory or Game Over
+  const handleEndGame = (type: 'victory' | 'game_over') => {
+    if (type === 'victory') {
+      try {
+        const victoryAudio = new Audio('/victory-chime.mp3');
+        victoryAudio.volume = 0.7;
+        victoryAudio.play();
+      } catch (_) {}
       setScreen(Screen.VICTORY);
+    } else {
+      setScreen(Screen.GAME_OVER);
     }
-  }, [participants, screen]);
+  };
 
   // Initialize participants for a new game
   const startNewGame = () => {
@@ -652,7 +722,7 @@ export default function App() {
     };
 
     return (
-      <div className="flex flex-col w-full h-full p-8 text-white overflow-hidden">
+      <div className="flex flex-col w-full h-full px-8 pb-8 pt-24 text-white overflow-hidden">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
             <button 
@@ -929,6 +999,41 @@ export default function App() {
     );
   };
 
+  const GameOverScreen = () => {
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-full text-white text-center p-8">
+        <motion.div
+          animate={{ scale: [1, 1.1, 1], rotate: [0, 2, -2, 0] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+          className="mb-8"
+        >
+          <XCircle className="w-64 h-64 text-red-500 drop-shadow-[0_0_50px_rgba(239,68,68,0.5)]" />
+        </motion.div>
+        
+        <motion.div
+           initial={{ y: 50, opacity: 0 }}
+           animate={{ y: 0, opacity: 1 }}
+           className="space-y-6"
+        >
+          <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-300 via-red-500 to-red-700 drop-shadow-xl">
+            RẤT TIẾC!
+          </h1>
+          <p className="text-3xl font-bold tracking-wide">Không còn thí sinh nào trên sàn thi đấu!</p>
+          
+          <div className="pt-12">
+            <button 
+              onClick={() => setScreen(Screen.HOME)}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white px-12 py-5 rounded-3xl font-black text-2xl shadow-2xl transition-all flex items-center gap-4 mx-auto"
+            >
+              <RotateCcw size={32} className="text-red-400" />
+              CHƠI LẠI
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
   const TutorialScreen = () => {
     const steps = [
       {
@@ -954,7 +1059,7 @@ export default function App() {
     ];
 
     return (
-      <div className="flex flex-col w-full h-full p-12 text-white overflow-hidden">
+      <div className="flex flex-col w-full h-full px-12 pb-12 pt-28 text-white overflow-hidden">
         <div className="flex items-center gap-6 mb-12">
           <button 
             onClick={() => setScreen(Screen.HOME)}
@@ -1026,15 +1131,30 @@ export default function App() {
             onShowAnswer={() => setShowAnswer(true)}
             onSetTimer={setQuestionTimer}
             onNextQuestion={nextQuestion}
+            onEndGame={handleEndGame}
           />}
           {screen === Screen.ADMIN && <AdminScreen />}
           {screen === Screen.VICTORY && <VictoryScreen />}
+          {screen === Screen.GAME_OVER && <GameOverScreen />}
           {screen === Screen.TUTORIAL && <TutorialScreen />}
         </motion.div>
       </AnimatePresence>
 
       {/* Decorative gradient overlay */}
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.05),transparent)] mix-blend-overlay"></div>
+
+      {/* Global Header Logo */}
+      <div className="absolute top-6 left-6 z-50 flex items-center gap-4 pointer-events-none">
+        <img 
+          src="/huy-hieu-cand.jpg" 
+          alt="CAND Logo" 
+          className="w-16 h-16 object-contain rounded-full shadow-[0_0_15px_rgba(255,255,255,0.3)] bg-white p-1"
+        />
+        <div className="flex flex-col text-white font-bold drop-shadow-md text-left">
+          <span className="text-sm uppercase tracking-wider opacity-90">Công an tỉnh Đồng Tháp</span>
+          <span className="text-lg uppercase text-yellow-400">Công an xã Thanh Bình</span>
+        </div>
+      </div>
     </div>
   );
 }
